@@ -11,6 +11,7 @@ import { processJob } from "./lib/jobs.js";
 import { decodeMultipartFilename } from "./lib/filename.js";
 import { mergeSegmentsBySentence } from "./lib/segments.js";
 import { isApplePodcastEpisodeUrl, resolveApplePodcastEpisode } from "./lib/apple-podcasts.js";
+import { processSummary } from "./lib/summary.js";
 
 const root = path.dirname(fileURLToPath(import.meta.url));
 process.chdir(root);
@@ -90,6 +91,20 @@ app.get("/api/jobs/:id", async (request, response) => {
   const job = await getJob(request.params.id);
   if (!job) return response.status(404).json({ error: "没有找到该任务。" });
   response.json(publicJob(job));
+});
+
+app.post("/api/jobs/:id/summary", async (request, response) => {
+  const job = await getJob(request.params.id);
+  if (!job) return response.status(404).json({ error: "没有找到该任务。" });
+  if (job.status !== "ready" || !job.segments?.length) {
+    return response.status(409).json({ error: "字幕生成完成后才能生成总结。" });
+  }
+  if (job.summaryStatus === "processing") return response.status(202).json(publicJob(job));
+  if (job.summary && !request.body?.regenerate) return response.json(publicJob(job));
+
+  const pending = await saveJob({ ...job, summaryStatus: "processing", summaryError: "" });
+  response.status(202).json(publicJob(pending));
+  void processSummary(job.id);
 });
 
 app.get("/api/jobs/:id/audio", async (request, response) => {

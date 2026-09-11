@@ -70,7 +70,7 @@ function renderJobs() {
 async function loadJobs() {
   state.jobs = await request("/api/jobs");
   renderJobs();
-  const hasPending = state.jobs.some((job) => ["queued", "processing"].includes(job.status));
+  const hasPending = state.jobs.some((job) => ["queued", "processing"].includes(job.status) || job.summaryStatus === "processing");
   if (hasPending && !state.pollTimer) state.pollTimer = window.setInterval(refreshPending, 1800);
   if (!hasPending && state.pollTimer) {
     window.clearInterval(state.pollTimer);
@@ -117,17 +117,79 @@ function showJob(job, preserveTime = false) {
       audio.addEventListener("loadedmetadata", () => { audio.currentTime = preserveTime ? previousTime : saved; }, { once: true });
     }
     $(".timeline-card").hidden = false;
+    renderSummary(job);
     renderTranscript(job.segments);
     $("#segment-summary").textContent = `${job.segments.length} 个时间片段 · 点击任意一句即可跳转`;
   } else {
     audio.pause();
     $(".timeline-card").hidden = true;
+    $("#summary-panel").hidden = true;
     transcript.innerHTML = `
       <div class="processing-panel">
         <strong>${escapeHtml(job.message)}</strong>
         <div class="progress-track" style="--progress:${job.progress}%"><i></i></div>
       </div>`;
     $("#segment-summary").textContent = job.status === "failed" ? "请检查错误信息后重新导入" : `处理进度 ${job.progress}%`;
+  }
+}
+
+function renderSummary(job) {
+  const panel = $("#summary-panel");
+  panel.hidden = false;
+  const status = job.summaryStatus || (job.summary ? "ready" : "idle");
+
+  if (status === "processing") {
+    panel.innerHTML = `
+      <div class="summary-head"><span class="eyebrow">AI 听后札记</span></div>
+      <div class="summary-loading"><i></i><i></i><i></i><strong>正在梳理这集播客</strong><span>完成后会自动显示</span></div>`;
+    return;
+  }
+
+  if (status === "failed") {
+    panel.innerHTML = `
+      <div class="summary-head"><span class="eyebrow">AI 听后札记</span></div>
+      <div class="summary-empty">
+        <div><strong>总结生成失败</strong><p>${escapeHtml(job.summaryError || "请稍后重试。")}</p></div>
+        <button class="summary-button" data-summary-action="retry">重新生成</button>
+      </div>`;
+  } else if (job.summary) {
+    const paragraphs = String(job.summary.overview).split(/\n+/).filter(Boolean)
+      .map((paragraph) => `<p>${escapeHtml(paragraph)}</p>`).join("");
+    panel.innerHTML = `
+      <div class="summary-head">
+        <span class="eyebrow">AI 听后札记</span>
+        <button class="summary-link" data-summary-action="regenerate">重新生成</button>
+      </div>
+      <div class="summary-copy">${paragraphs}</div>
+      <ol class="summary-points">${job.summary.keyPoints.map((point) => `<li>${escapeHtml(point)}</li>`).join("")}</ol>`;
+  } else {
+    panel.innerHTML = `
+      <div class="summary-head"><span class="eyebrow">AI 听后札记</span></div>
+      <div class="summary-empty">
+        <div><strong>先看懂，再细听</strong><p>基于完整逐字稿生成中文概述和关键要点。</p></div>
+        <button class="summary-button" data-summary-action="generate">生成 AI 总结</button>
+      </div>`;
+  }
+
+  panel.querySelector("[data-summary-action]")?.addEventListener("click", generateSummary);
+}
+
+async function generateSummary(event) {
+  const button = event.currentTarget;
+  const regenerate = button.dataset.summaryAction !== "generate";
+  button.disabled = true;
+  try {
+    const job = await request(`/api/jobs/${state.selectedId}/summary`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ regenerate })
+    });
+    state.selectedJob = job;
+    renderSummary(job);
+    await loadJobs();
+  } catch (problem) {
+    showToast(problem.message);
+    button.disabled = false;
   }
 }
 
