@@ -276,8 +276,8 @@ h1, h2 { font-family: "Iowan Old Style", "Songti SC", serif; font-weight: 600; }
 .view-switch button.active, .source-tabs button.active { background: var(--ink); color: white; }
 
 .transcript {
-  max-height: calc(100vh - 440px);
-  min-height: 280px;
+  max-height: calc(100vh - 340px);
+  min-height: 420px;
   overflow: auto;
   scroll-behavior: smooth;
   padding: 8px 8px 100px 0;
@@ -348,7 +348,7 @@ h1, h2 { font-family: "Iowan Old Style", "Songti SC", serif; font-weight: 600; }
   .summary-empty { align-items: flex-start; flex-direction: column; }
   .summary-copy { font-size: 16px; }
   .transport { grid-template-columns: 1fr auto auto auto 1fr; gap: 7px; }
-  .transcript { max-height: none; }
+  .transcript { min-height: 280px; max-height: none; }
   .segment { grid-template-columns: 48px minmax(0, 1fr); gap: 10px; }
   .toast { right: 14px; bottom: 14px; left: 14px; text-align: center; }
 }

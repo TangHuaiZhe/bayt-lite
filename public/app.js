@@ -189,6 +189,7 @@ function renderSummary(job) {
 async function generateSummary(event) {
   const button = event.currentTarget;
   const regenerate = button.dataset.summaryAction !== "generate";
+  if (regenerate && !window.confirm("确定重新生成 AI 总结吗？这会再次调用 DeepSeek；已有总结将被覆盖。")) return;
   button.disabled = true;
   try {
     const job = await request(`/api/jobs/${state.selectedId}/summary`, {
