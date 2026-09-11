@@ -112,9 +112,10 @@ function runJob(job, { remoteUrl, resolveSource = false } = {}) {
 }
 
 async function initializeDemo() {
-  if (await getJob("demo")) return;
+  const existing = await getJob("demo");
   const demo = JSON.parse(await readFile(path.join(root, "public/demo/demo.json"), "utf8"));
   await saveJob({
+    ...existing,
     ...demo,
     id: "demo",
     demo: true,
@@ -122,7 +123,7 @@ async function initializeDemo() {
     status: "ready",
     progress: 100,
     message: "演示内容",
-    createdAt: new Date().toISOString(),
+    createdAt: existing?.createdAt || new Date().toISOString(),
     updatedAt: new Date().toISOString()
   });
 }

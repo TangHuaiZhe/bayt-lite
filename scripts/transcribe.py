@@ -11,6 +11,7 @@ result = mlx_whisper.transcribe(
     path_or_hf_repo=os.environ.get("WHISPER_MODEL", "mlx-community/whisper-small-mlx"),
     language="en",
     task="transcribe",
+    word_timestamps=True,
     verbose=False,
 )
 with open(output_path, "w", encoding="utf-8") as output_file:

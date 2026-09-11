@@ -32,3 +32,15 @@ test("leaves complete sentences as separate segments", () => {
   assert.equal(result.length, 2);
   assert.equal(result[1].start, 2);
 });
+
+test("keeps word timestamps while merging fragments into a sentence", () => {
+  const result = mergeSegmentsBySentence([
+    { id: "0", start: 0, end: 1, en: "Hello", zh: "", words: [{ text: " Hello", start: 0, end: 0.8 }] },
+    { id: "1", start: 1, end: 2, en: "world.", zh: "", words: [{ text: " world.", start: 1, end: 1.8 }] }
+  ]);
+
+  assert.deepEqual(result[0].words, [
+    { text: " Hello", start: 0, end: 0.8 },
+    { text: " world.", start: 1, end: 1.8 }
+  ]);
+});

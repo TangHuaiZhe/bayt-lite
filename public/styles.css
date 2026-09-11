@@ -298,7 +298,15 @@ h1, h2 { font-family: "Iowan Old Style", "Songti SC", serif; font-weight: 600; }
 .segment.active::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; background: var(--signal); }
 .segment time { padding-top: 5px; color: var(--moss); font: 600 10px/1 "SFMono-Regular", monospace; }
 .segment-text p { margin: 0; }
-.segment-text .en { color: var(--ink); font: 500 17px/1.42 "Iowan Old Style", Georgia, serif; }
+.segment-text .en { color: var(--ink); font: 500 17px/1.42 "Iowan Old Style", Georgia, serif; white-space: pre-wrap; }
+.word { transition: color 90ms linear; }
+.word.spoken { color: var(--signal-dark); }
+.word.current {
+  color: transparent;
+  background: linear-gradient(90deg, var(--signal-dark) var(--word-progress, 0%), var(--ink) var(--word-progress, 0%));
+  background-clip: text;
+  -webkit-background-clip: text;
+}
 .segment-text .zh { margin-top: 7px; color: var(--ink-soft); font-size: 14px; line-height: 1.55; }
 .transcript[data-view="en"] .zh, .transcript[data-view="zh"] .en { display: none; }
 .transcript[data-view="zh"] .zh { margin-top: 0; color: var(--ink); font-size: 16px; }

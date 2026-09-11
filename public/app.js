@@ -3,6 +3,9 @@ const state = {
   selectedId: null,
   selectedJob: null,
   activeSegment: -1,
+  activeWord: -1,
+  spokenWords: 0,
+  animationFrame: null,
   follow: true,
   source: "file",
   rssPodcast: null,
@@ -89,6 +92,8 @@ async function refreshPending() {
 async function selectJob(id) {
   state.selectedId = id;
   state.activeSegment = -1;
+  state.activeWord = -1;
+  state.spokenWords = 0;
   renderJobs();
   const job = await request(`/api/jobs/${id}`);
   showJob(job);
@@ -212,12 +217,15 @@ function renderArtwork(job) {
 }
 
 function renderTranscript(segments) {
+  state.activeSegment = -1;
+  state.activeWord = -1;
+  state.spokenWords = 0;
   transcript.dataset.view = transcript.dataset.view || "both";
   transcript.innerHTML = segments.map((segment, index) => `
     <article class="segment" data-segment-index="${index}" tabindex="0">
       <time>${formatTime(segment.start)}</time>
       <div class="segment-text">
-        <p class="en" lang="en">${escapeHtml(segment.en)}</p>
+        <p class="en" lang="en">${renderEnglish(segment)}</p>
         <p class="zh">${escapeHtml(segment.zh)}</p>
       </div>
     </article>
@@ -235,6 +243,14 @@ function renderTranscript(segments) {
   });
 }
 
+function renderEnglish(segment) {
+  if (!segment.words?.length) return escapeHtml(segment.en);
+  return segment.words.map((word, index) => {
+    const text = index === 0 ? word.text.trimStart() : word.text;
+    return `<span class="word" data-word-index="${index}">${escapeHtml(text)}</span>`;
+  }).join("");
+}
+
 function findActiveSegment(segments, currentTime) {
   let low = 0;
   let high = segments.length - 1;
@@ -248,17 +264,55 @@ function findActiveSegment(segments, currentTime) {
   return currentTime <= segments[candidate].end + 0.18 ? candidate : -1;
 }
 
+function findWordState(words, currentTime) {
+  let low = 0;
+  let high = words.length - 1;
+  let candidate = -1;
+  while (low <= high) {
+    const middle = Math.floor((low + high) / 2);
+    if (words[middle].start <= currentTime) { candidate = middle; low = middle + 1; }
+    else high = middle - 1;
+  }
+  if (candidate < 0) return { active: -1, spoken: 0, progress: 0 };
+  const word = words[candidate];
+  if (currentTime > word.end) return { active: -1, spoken: candidate + 1, progress: 0 };
+  const duration = Math.max(word.end - word.start, 0.01);
+  return { active: candidate, spoken: candidate, progress: Math.min(1, Math.max(0, (currentTime - word.start) / duration)) };
+}
+
+function syncWords(segmentIndex) {
+  const words = segmentIndex >= 0 ? state.selectedJob.segments[segmentIndex].words : null;
+  const wordState = words?.length ? findWordState(words, audio.currentTime) : { active: -1, spoken: 0, progress: 0 };
+  const segmentElement = segmentIndex >= 0 ? transcript.querySelector(`[data-segment-index="${segmentIndex}"]`) : null;
+
+  if (wordState.active !== state.activeWord || wordState.spoken !== state.spokenWords) {
+    transcript.querySelector(".word.current")?.classList.remove("current");
+    segmentElement?.querySelectorAll(".word").forEach((element, index) => {
+      element.classList.toggle("spoken", index < wordState.spoken);
+      element.classList.toggle("current", index === wordState.active);
+    });
+    state.activeWord = wordState.active;
+    state.spokenWords = wordState.spoken;
+  }
+  segmentElement?.querySelector(".word.current")?.style.setProperty("--word-progress", `${wordState.progress * 100}%`);
+}
+
 function syncTranscript() {
   if (state.selectedJob?.status !== "ready") return;
   const next = findActiveSegment(state.selectedJob.segments, audio.currentTime);
-  if (next === state.activeSegment) return;
-  transcript.querySelector(".segment.active")?.classList.remove("active");
-  state.activeSegment = next;
-  if (next >= 0) {
-    const element = transcript.querySelector(`[data-segment-index="${next}"]`);
-    element?.classList.add("active");
-    if (state.follow) element?.scrollIntoView({ behavior: "smooth", block: "center" });
+  if (next !== state.activeSegment) {
+    transcript.querySelector(".segment.active")?.classList.remove("active");
+    transcript.querySelectorAll(".word.current, .word.spoken").forEach((element) => element.classList.remove("current", "spoken"));
+    state.activeSegment = next;
+    state.activeWord = -1;
+    state.spokenWords = 0;
+    if (next >= 0) {
+      const element = transcript.querySelector(`[data-segment-index="${next}"]`);
+      element?.classList.add("active");
+      if (state.follow) element?.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
   }
+  syncWords(next);
 }
 
 function updateTimeline() {
@@ -269,6 +323,11 @@ function updateTimeline() {
   $("#duration").textContent = formatTime(total);
   $(".tick-track").style.setProperty("--played", `${percent}%`);
   syncTranscript();
+}
+
+function animatePlayback() {
+  updateTimeline();
+  state.animationFrame = audio.paused ? null : window.requestAnimationFrame(animatePlayback);
 }
 
 function openImport() {
@@ -377,8 +436,18 @@ $("#follow-toggle").addEventListener("click", (event) => {
 timeline.addEventListener("input", () => { if (audio.duration) audio.currentTime = (Number(timeline.value) / 100) * audio.duration; });
 audio.addEventListener("timeupdate", updateTimeline);
 audio.addEventListener("durationchange", updateTimeline);
-audio.addEventListener("play", () => { $("#play span").textContent = "Ⅱ"; $("#play").setAttribute("aria-label", "暂停"); });
-audio.addEventListener("pause", () => { $("#play span").textContent = "▶"; $("#play").setAttribute("aria-label", "播放"); });
+audio.addEventListener("play", () => {
+  $("#play span").textContent = "Ⅱ";
+  $("#play").setAttribute("aria-label", "暂停");
+  if (!state.animationFrame) state.animationFrame = window.requestAnimationFrame(animatePlayback);
+});
+audio.addEventListener("pause", () => {
+  $("#play span").textContent = "▶";
+  $("#play").setAttribute("aria-label", "播放");
+  if (state.animationFrame) window.cancelAnimationFrame(state.animationFrame);
+  state.animationFrame = null;
+  updateTimeline();
+});
 window.setInterval(() => {
   if (state.selectedId && !audio.paused) localStorage.setItem(`listen-progress:${state.selectedId}`, String(audio.currentTime));
 }, 3000);
