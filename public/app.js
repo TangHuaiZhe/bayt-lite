@@ -102,7 +102,9 @@ function showJob(job, preserveTime = false) {
   $("#episode-title").textContent = job.title;
   $("#podcast-name").textContent = job.podcast;
   const isProcessing = ["queued", "processing"].includes(job.status);
+  const isRetryable = ["failed", "cancelled"].includes(job.status);
   $("#cancel-job").hidden = Boolean(job.demo) || !isProcessing;
+  $("#retry-job").hidden = Boolean(job.demo) || !isRetryable;
   $("#delete-job").hidden = Boolean(job.demo) || isProcessing;
   renderArtwork(job);
 
@@ -131,7 +133,7 @@ function showJob(job, preserveTime = false) {
         <strong>${escapeHtml(job.message)}</strong>
         <div class="progress-track" style="--progress:${job.progress}%"><i></i></div>
       </div>`;
-    $("#segment-summary").textContent = job.status === "failed" ? "请检查错误信息后重新导入" : `处理进度 ${job.progress}%`;
+    $("#segment-summary").textContent = isRetryable ? "可以重试任务，或者删除本地记录" : `处理进度 ${job.progress}%`;
   }
 }
 
@@ -410,5 +412,21 @@ async function cancelSelectedTask(message = "任务已取消") {
 }
 
 $("#cancel-job").addEventListener("click", () => cancelSelectedTask());
+
+$("#retry-job").addEventListener("click", async () => {
+  if (!state.selectedId || state.selectedJob?.demo) return;
+  const button = $("#retry-job");
+  button.disabled = true;
+  try {
+    localStorage.removeItem(`listen-progress:${state.selectedId}`);
+    const job = await request(`/api/jobs/${state.selectedId}/retry`, { method: "POST" });
+    showJob(job);
+    await loadJobs();
+    showToast("任务已重新开始");
+  } catch (problem) {
+    showToast(problem.message);
+    button.disabled = false;
+  }
+});
 
 await loadJobs();

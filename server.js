@@ -13,6 +13,7 @@ import { mergeSegmentsBySentence } from "./lib/segments.js";
 import { isApplePodcastEpisodeUrl, resolveApplePodcastEpisode } from "./lib/apple-podcasts.js";
 import { processSummary } from "./lib/summary.js";
 import { cancelTask, finishTask, startTask } from "./lib/task-control.js";
+import { isRetryableJob, prepareJobForRetry } from "./lib/retry.js";
 
 const root = path.dirname(fileURLToPath(import.meta.url));
 process.chdir(root);
@@ -55,6 +56,58 @@ async function downloadAudio(remoteUrl, destination, signal) {
   const bytes = new Uint8Array(await response.arrayBuffer());
   if (bytes.byteLength > 300 * 1024 * 1024) throw new Error("音频超过 300 MB 限制。 ");
   await writeFile(destination, bytes, { signal });
+}
+
+async function resolveRemoteSource({ audioUrl, title, podcast, artwork }) {
+  safeRemoteUrl(audioUrl);
+  if (!isApplePodcastEpisodeUrl(audioUrl)) return { audioUrl, title, podcast, artwork };
+  const episode = await resolveApplePodcastEpisode(audioUrl);
+  safeRemoteUrl(episode.audioUrl);
+  return {
+    audioUrl: episode.audioUrl,
+    title: title?.trim() || episode.title,
+    podcast: podcast?.trim() || episode.podcast,
+    artwork: artwork || episode.artwork
+  };
+}
+
+function runJob(job, { remoteUrl, resolveSource = false } = {}) {
+  const controller = startTask(job.id);
+  void (async () => {
+    try {
+      let latest = job;
+      let downloadUrl = remoteUrl;
+      if (resolveSource) {
+        const source = await resolveRemoteSource({
+          audioUrl: job.sourceUrl,
+          title: job.title === "未命名单集" ? "" : job.title,
+          podcast: job.podcast === "链接导入" ? "" : job.podcast,
+          artwork: job.artwork
+        });
+        latest = await getJob(job.id);
+        if (!latest || controller.signal.aborted) return;
+        latest = await saveJob({
+          ...latest,
+          title: source.title?.trim() || latest.title,
+          podcast: source.podcast?.trim() || latest.podcast,
+          artwork: source.artwork || latest.artwork,
+          progress: 4,
+          message: "正在重新下载音频"
+        });
+        downloadUrl = source.audioUrl;
+      }
+      if (downloadUrl) await downloadAudio(downloadUrl, latest.localPath, controller.signal);
+      await processJob(latest.id, { signal: controller.signal });
+    } catch (error) {
+      if (controller.signal.aborted) return;
+      const latest = await getJob(job.id);
+      if (!controller.signal.aborted && latest) {
+        await saveJob({ ...latest, status: "failed", progress: 0, message: error.message, updatedAt: new Date().toISOString() });
+      }
+    } finally {
+      finishTask(job.id, controller);
+    }
+  })();
 }
 
 async function initializeDemo() {
@@ -158,26 +211,15 @@ app.post("/api/jobs/upload", upload.single("audio"), async (request, response) =
     updatedAt: now
   });
   response.status(202).json(publicJob(job));
-  const controller = startTask(id);
-  void processJob(id, { signal: controller.signal }).finally(() => finishTask(id, controller));
+  runJob(job);
 });
 
 app.post("/api/jobs/url", async (request, response) => {
   const { audioUrl, title, podcast, artwork } = request.body;
   if (!audioUrl) return response.status(400).json({ error: "请输入音频地址。" });
-  let source = { audioUrl, title, podcast, artwork };
+  let source;
   try {
-    safeRemoteUrl(audioUrl);
-    if (isApplePodcastEpisodeUrl(audioUrl)) {
-      const appleEpisode = await resolveApplePodcastEpisode(audioUrl);
-      source = {
-        audioUrl: appleEpisode.audioUrl,
-        title: title?.trim() || appleEpisode.title,
-        podcast: podcast?.trim() || appleEpisode.podcast,
-        artwork: artwork || appleEpisode.artwork
-      };
-      safeRemoteUrl(source.audioUrl);
-    }
+    source = await resolveRemoteSource({ audioUrl, title, podcast, artwork });
   } catch (error) {
     return response.status(400).json({ error: error.message });
   }
@@ -200,21 +242,7 @@ app.post("/api/jobs/url", async (request, response) => {
     updatedAt: now
   });
   response.status(202).json(publicJob(job));
-  const controller = startTask(id);
-  void (async () => {
-    try {
-      await downloadAudio(source.audioUrl, localPath, controller.signal);
-      await processJob(id, { signal: controller.signal });
-    } catch (error) {
-      if (controller.signal.aborted) return;
-      const latest = await getJob(id);
-      if (!controller.signal.aborted && latest) {
-        await saveJob({ ...latest, status: "failed", progress: 0, message: error.message, updatedAt: new Date().toISOString() });
-      }
-    } finally {
-      finishTask(id, controller);
-    }
-  })();
+  runJob(job, { remoteUrl: source.audioUrl });
 });
 
 app.get("/api/rss", async (request, response) => {
@@ -249,6 +277,20 @@ app.post("/api/jobs/:id/cancel", async (request, response) => {
   await saveJob(updated);
   await rm(path.join(root, "data/chunks", job.id), { recursive: true, force: true });
   response.json(publicJob(updated));
+});
+
+app.post("/api/jobs/:id/retry", async (request, response) => {
+  const job = await getJob(request.params.id);
+  if (!job) return response.status(404).json({ error: "没有找到该任务。" });
+  if (!isRetryableJob(job)) return response.status(409).json({ error: "只有失败或已取消的任务可以重试。" });
+  if (!job.sourceUrl && (!job.localPath || !existsSync(job.localPath))) {
+    return response.status(409).json({ error: "原始音频已丢失，请重新导入文件。" });
+  }
+
+  cancelTask(job.id);
+  const pending = await saveJob(prepareJobForRetry(job));
+  response.status(202).json(publicJob(pending));
+  runJob(pending, { resolveSource: Boolean(pending.sourceUrl) });
 });
 
 app.use((error, _request, response, _next) => {

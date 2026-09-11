@@ -207,6 +207,9 @@ h1, h2 { font-family: "Iowan Old Style", "Songti SC", serif; font-weight: 600; }
 .episode-action { padding: 8px 11px; border: 1px solid var(--line); border-radius: 999px; background: rgba(248,250,249,.62); color: var(--ink-soft); font-size: 11px; font-weight: 700; cursor: pointer; }
 .episode-action:hover { border-color: var(--signal); color: var(--signal-dark); background: var(--paper-light); }
 .cancel-action { border-color: rgba(236,105,79,.5); color: var(--signal-dark); }
+.retry-action { border-color: var(--ink); background: var(--ink); color: white; }
+.retry-action:hover { border-color: var(--ink); background: #2a3942; color: white; }
+.episode-action:disabled { opacity: .5; cursor: wait; }
 
 .timeline-card {
   margin: 34px 0;
