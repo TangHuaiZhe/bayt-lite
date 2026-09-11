@@ -1,0 +1,21 @@
+{
+  "name": "bayt-lite",
+  "version": "0.1.0",
+  "private": true,
+  "description": "个人播客双语字幕播放器",
+  "license": "MIT",
+  "repository": "https://github.com/TangHuaiZhe/bayt-lite",
+  "engines": { "node": ">=20" },
+  "type": "module",
+  "scripts": {
+    "setup": "uv venv --python 3.12 && uv pip install --python .venv/bin/python mlx-whisper==0.4.3",
+    "start": "node --env-file-if-exists=.env server.js",
+    "dev": "node --env-file-if-exists=.env --watch server.js",
+    "test": "node --test"
+  },
+  "dependencies": {
+    "express": "^5.1.0",
+    "fast-xml-parser": "^5.2.5",
+    "multer": "^2.0.2"
+  }
+}

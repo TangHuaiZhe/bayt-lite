@@ -1,0 +1,9 @@
+node_modules/
+.venv/
+.env
+data/jobs.json
+data/uploads/
+data/chunks/
+.DS_Store
+.playwright-cli/
+output/

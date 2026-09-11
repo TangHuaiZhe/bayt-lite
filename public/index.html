@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#15212a" />
+    <title>听译台</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 64 64%22><rect width=%2264%22 height=%2264%22 rx=%2214%22 fill=%22%2315212a%22/><text x=%2232%22 y=%2244%22 font-size=%2240%22 text-anchor=%22middle%22 fill=%22white%22>听</text></svg>" />
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="masthead">
+        <a class="brand" href="/" aria-label="听译台首页">
+          <span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
+          <span>听译台</span>
+        </a>
+        <p>把英文播客变成一份跟得上声音的双语稿。</p>
+        <button id="import-open" class="primary-button">导入一集</button>
+      </header>
+
+      <main class="workspace">
+        <aside class="library-panel">
+          <div class="panel-heading">
+            <div>
+              <span class="eyebrow">个人资料架</span>
+              <h1>最近收听</h1>
+            </div>
+            <span id="job-count" class="count-badge">0</span>
+          </div>
+          <div id="job-list" class="job-list" aria-live="polite"></div>
+        </aside>
+
+        <section class="listening-room" aria-label="播放器">
+          <div id="empty-state" class="empty-state">
+            <div class="empty-groove" aria-hidden="true"></div>
+            <span class="eyebrow">从一段声音开始</span>
+            <h2>选择左侧单集，<br />或者导入你自己的播客。</h2>
+            <button id="demo-open" class="text-button">打开演示单集 <span>→</span></button>
+          </div>
+
+          <div id="player-view" class="player-view" hidden>
+            <div class="episode-header">
+              <div id="artwork" class="artwork"><span>听</span></div>
+              <div class="episode-copy">
+                <span id="podcast-name" class="eyebrow"></span>
+                <h2 id="episode-title"></h2>
+                <div id="episode-status" class="episode-status"></div>
+              </div>
+              <button id="delete-job" class="icon-button" title="删除单集" aria-label="删除单集">×</button>
+            </div>
+
+            <div class="timeline-card">
+              <audio id="audio" preload="metadata"></audio>
+              <div class="time-row">
+                <span id="current-time">00:00</span>
+                <div class="timeline-wrap">
+                  <input id="timeline" type="range" min="0" max="100" value="0" step="0.01" aria-label="播放进度" />
+                  <div class="tick-track" aria-hidden="true"></div>
+                </div>
+                <span id="duration">00:00</span>
+              </div>
+              <div class="transport">
+                <select id="speed" aria-label="播放速度">
+                  <option value="0.75">0.75×</option>
+                  <option value="1" selected>1×</option>
+                  <option value="1.25">1.25×</option>
+                  <option value="1.5">1.5×</option>
+                  <option value="2">2×</option>
+                </select>
+                <button id="backward" class="transport-button" aria-label="后退十五秒">−15</button>
+                <button id="play" class="play-button" aria-label="播放"><span>▶</span></button>
+                <button id="forward" class="transport-button" aria-label="前进十五秒">+15</button>
+                <button id="follow-toggle" class="follow-button active" aria-pressed="true">跟随字幕</button>
+              </div>
+            </div>
+
+            <div class="transcript-heading">
+              <div>
+                <span class="eyebrow">双语逐字稿</span>
+                <p id="segment-summary"></p>
+              </div>
+              <div class="view-switch" role="group" aria-label="字幕显示方式">
+                <button data-view="both" class="active">双语</button>
+                <button data-view="en">英文</button>
+                <button data-view="zh">中文</button>
+              </div>
+            </div>
+            <div id="transcript" class="transcript" tabindex="0"></div>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <dialog id="import-dialog" class="import-dialog">
+      <form class="dialog-card" id="import-form">
+        <div class="dialog-header">
+          <div><span class="eyebrow">新建听译</span><h2>导入一集播客</h2></div>
+          <button type="button" class="icon-button dialog-close" aria-label="关闭">×</button>
+        </div>
+        <div class="source-tabs" role="tablist">
+          <button type="button" data-source="file" class="active">本地音频</button>
+          <button type="button" data-source="audio">音频地址</button>
+          <button type="button" data-source="rss">RSS 地址</button>
+        </div>
+        <section data-source-panel="file">
+          <label class="drop-zone" for="audio-file">
+            <input id="audio-file" name="audio" type="file" accept="audio/*,.mp3,.m4a,.wav,.ogg,.webm" />
+            <strong>选择音频文件</strong>
+            <span>最大 300 MB，支持 MP3、M4A、WAV、OGG 和 WebM</span>
+          </label>
+        </section>
+        <section data-source-panel="audio" hidden>
+          <label>单集标题<input id="audio-title" class="field" type="text" placeholder="例如：How AI changes product design" /></label>
+          <label>音频直链<input id="audio-url" class="field" type="url" placeholder="https://example.com/episode.mp3" /></label>
+        </section>
+        <section data-source-panel="rss" hidden>
+          <label>播客 RSS 地址<input id="rss-url" class="field" type="url" placeholder="https://example.com/feed.xml" /></label>
+          <button id="rss-load" type="button" class="secondary-button">读取节目</button>
+          <div id="rss-results" class="rss-results"></div>
+        </section>
+        <p id="form-error" class="form-error" role="alert"></p>
+        <div class="dialog-actions">
+          <button type="button" class="secondary-button dialog-close">取消</button>
+          <button type="submit" id="import-submit" class="primary-button">开始生成字幕</button>
+        </div>
+      </form>
+    </dialog>
+
+    <div id="toast" class="toast" role="status"></div>
+    <script type="module" src="/app.js"></script>
+  </body>
+</html>

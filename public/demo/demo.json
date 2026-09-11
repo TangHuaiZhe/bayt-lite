@@ -1,0 +1,16 @@
+{
+  "title": "A small place for careful listening",
+  "podcast": "听译台演示",
+  "artwork": "",
+  "mimeType": "audio/mpeg",
+  "duration": 25.05,
+  "segments": [
+    { "id": "0", "start": 0, "end": 4.05, "speaker": "Speaker", "en": "Welcome to Listening Desk, a small place for slow and careful listening.", "zh": "欢迎来到听译台，一个适合慢下来、认真聆听的小空间。" },
+    { "id": "1", "start": 4.05, "end": 7.86, "speaker": "Speaker", "en": "A podcast can carry an idea across the world in a single afternoon.", "zh": "一档播客可以在一个下午，把一种思想带到世界另一端。" },
+    { "id": "2", "start": 7.86, "end": 10.97, "speaker": "Speaker", "en": "But language often stands between the speaker and the listener.", "zh": "但语言往往隔在讲述者与听众之间。" },
+    { "id": "3", "start": 10.97, "end": 15.09, "speaker": "Speaker", "en": "This player keeps the original sentence and its Chinese translation together.", "zh": "这个播放器让英文原句与中文翻译始终并排呈现。" },
+    { "id": "4", "start": 15.09, "end": 19.16, "speaker": "Speaker", "en": "As the voice moves forward, the current passage follows the playback head.", "zh": "随着声音向前，当前字幕会跟随播放进度移动。" },
+    { "id": "5", "start": 19.16, "end": 22.37, "speaker": "Speaker", "en": "You can select any sentence to return to that exact moment.", "zh": "你可以点击任意一句，回到它出现的准确时刻。" },
+    { "id": "6", "start": 22.37, "end": 25.05, "speaker": "Speaker", "en": "Import your own episode when you are ready to begin.", "zh": "准备好之后，就导入你自己的播客开始吧。" }
+  ]
+}
