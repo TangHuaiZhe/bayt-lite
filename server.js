@@ -9,6 +9,7 @@ import { ensureStorage, listJobs, getJob, saveJob, deleteJob } from "./lib/stora
 import { parsePodcastFeed } from "./lib/rss.js";
 import { processJob } from "./lib/jobs.js";
 import { decodeMultipartFilename } from "./lib/filename.js";
+import { mergeSegmentsBySentence } from "./lib/segments.js";
 
 const root = path.dirname(fileURLToPath(import.meta.url));
 process.chdir(root);
@@ -27,7 +28,7 @@ app.use(express.static(path.join(root, "public")));
 function publicJob(job) {
   if (!job) return null;
   const { localPath, ...safe } = job;
-  return { ...safe, audioUrl: `/api/jobs/${job.id}/audio` };
+  return { ...safe, segments: mergeSegmentsBySentence(safe.segments || []), audioUrl: `/api/jobs/${job.id}/audio` };
 }
 
 function safeRemoteUrl(input) {
