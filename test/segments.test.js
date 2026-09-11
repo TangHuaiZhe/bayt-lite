@@ -44,3 +44,15 @@ test("keeps word timestamps while merging fragments into a sentence", () => {
     { text: " world.", start: 1, end: 1.8 }
   ]);
 });
+
+test("keeps vocabulary hints while merging stored segments", () => {
+  const result = mergeSegmentsBySentence([
+    { id: "0", start: 0, end: 1, en: "A careful", zh: "一个仔细的", vocabulary: [{ word: "careful", zh: "仔细的", level: "cet4" }] },
+    { id: "1", start: 1, end: 2, en: "translation.", zh: "翻译。", vocabulary: [{ word: "translation", zh: "翻译", level: "cet6" }] }
+  ]);
+
+  assert.deepEqual(result[0].vocabulary, [
+    { word: "careful", zh: "仔细的", level: "cet4" },
+    { word: "translation", zh: "翻译", level: "cet6" }
+  ]);
+});

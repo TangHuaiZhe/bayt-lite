@@ -15,6 +15,7 @@ import { processSummary } from "./lib/summary.js";
 import { cancelTask, finishTask, startTask } from "./lib/task-control.js";
 import { isRetryableJob, prepareJobForRetry } from "./lib/retry.js";
 import { dataPath } from "./lib/paths.js";
+import { extractAudio, mediaUploadError, probeMedia } from "./lib/media.js";
 
 const root = path.dirname(fileURLToPath(import.meta.url));
 await ensureStorage();
@@ -23,8 +24,7 @@ const app = express();
 const port = Number(process.env.PORT || 4173);
 const host = process.env.HOST || "127.0.0.1";
 const upload = multer({
-  dest: dataPath("uploads"),
-  limits: { fileSize: 300 * 1024 * 1024 }
+  dest: dataPath("uploads")
 });
 
 app.use(express.json({ limit: "1mb" }));
@@ -78,6 +78,10 @@ function runJob(job, { remoteUrl, resolveSource = false } = {}) {
     try {
       let latest = job;
       let downloadUrl = remoteUrl;
+      if (latest.requiresAudioExtraction) {
+        latest = await extractVideoJobAudio(latest, controller.signal);
+        if (!latest) return;
+      }
       if (resolveSource) {
         const source = await resolveRemoteSource({
           audioUrl: job.sourceUrl,
@@ -109,6 +113,32 @@ function runJob(job, { remoteUrl, resolveSource = false } = {}) {
       finishTask(job.id, controller);
     }
   })();
+}
+
+async function extractVideoJobAudio(job, signal) {
+  const videoPath = job.localPath;
+  const audioPath = dataPath("uploads", `${job.id}.audio.m4a`);
+  const current = await getJob(job.id);
+  if (!current || signal.aborted) return null;
+  await saveJob({ ...current, status: "processing", progress: 4, message: "正在从视频提取音频", updatedAt: new Date().toISOString() });
+  await extractAudio(videoPath, audioPath, { signal });
+
+  const latest = await getJob(job.id);
+  if (!latest || signal.aborted || latest.status === "cancelled") {
+    await rm(audioPath, { force: true });
+    return null;
+  }
+  const extracted = await saveJob({
+    ...latest,
+    localPath: audioPath,
+    mimeType: "audio/mp4",
+    requiresAudioExtraction: false,
+    progress: 7,
+    message: "音频提取完成",
+    updatedAt: new Date().toISOString()
+  });
+  await rm(videoPath, { force: true });
+  return extracted;
 }
 
 async function initializeDemo() {
@@ -191,29 +221,49 @@ app.get("/api/jobs/:id/audio", async (request, response) => {
 });
 
 app.post("/api/jobs/upload", upload.single("audio"), async (request, response) => {
-  if (!request.file) return response.status(400).json({ error: "请选择音频文件。" });
-  const id = crypto.randomUUID();
-  const originalName = decodeMultipartFilename(request.file.originalname);
-  const extension = path.extname(originalName) || ".audio";
-  const localPath = dataPath("uploads", `${id}${extension}`);
-  await rename(request.file.path, localPath);
-  const now = new Date().toISOString();
-  const job = await saveJob({
-    id,
-    title: request.body.title?.trim() || path.basename(originalName, extension),
-    podcast: "本地导入",
-    artwork: "",
-    localPath,
-    mimeType: request.file.mimetype,
-    status: "queued",
-    progress: 2,
-    message: "已加入处理队列",
-    segments: [],
-    createdAt: now,
-    updatedAt: now
-  });
-  response.status(202).json(publicJob(job));
-  runJob(job);
+  if (!request.file) return response.status(400).json({ error: "请选择音频或视频文件。" });
+  let moved = false;
+  let accepted = false;
+  let localPath;
+  try {
+    const media = await probeMedia(request.file.path);
+    const validationError = mediaUploadError(media, request.file.size);
+    if (validationError) {
+      const status = media.hasAudio ? 413 : 415;
+      return response.status(status).json({ error: validationError });
+    }
+
+    const id = crypto.randomUUID();
+    const originalName = decodeMultipartFilename(request.file.originalname);
+    const extension = path.extname(originalName) || ".media";
+    localPath = dataPath("uploads", `${id}${extension}`);
+    await rename(request.file.path, localPath);
+    moved = true;
+    const now = new Date().toISOString();
+    const job = await saveJob({
+      id,
+      title: request.body.title?.trim() || path.basename(originalName, extension),
+      podcast: "本地导入",
+      artwork: "",
+      localPath,
+      mimeType: request.file.mimetype,
+      requiresAudioExtraction: media.hasVideo,
+      status: "queued",
+      progress: 2,
+      message: media.hasVideo ? "已加入音频提取队列" : "已加入处理队列",
+      segments: [],
+      createdAt: now,
+      updatedAt: now
+    });
+    accepted = true;
+    response.status(202).json(publicJob(job));
+    runJob(job);
+  } catch {
+    response.status(415).json({ error: "无法识别这个音视频文件。" });
+  } finally {
+    if (!moved) await rm(request.file.path, { force: true });
+    if (moved && !accepted) await rm(localPath, { force: true });
+  }
 });
 
 app.post("/api/jobs/url", async (request, response) => {
@@ -297,7 +347,7 @@ app.post("/api/jobs/:id/retry", async (request, response) => {
 
 app.use((error, _request, response, _next) => {
   response.status(error.code === "LIMIT_FILE_SIZE" ? 413 : 500).json({
-    error: error.code === "LIMIT_FILE_SIZE" ? "音频超过 300 MB 限制。" : "服务暂时无法完成请求。"
+    error: error.code === "LIMIT_FILE_SIZE" ? "文件过大。" : "服务暂时无法完成请求。"
   });
 });
 

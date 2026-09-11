@@ -271,6 +271,11 @@ h1, h2 { font-family: "Iowan Old Style", "Songti SC", serif; font-weight: 600; }
 
 .transcript-heading { margin: 0 0 15px; }
 .transcript-heading p { margin: 6px 0 0; color: var(--ink-soft); font-size: 12px; }
+.transcript-controls { display: flex; align-items: center; gap: 10px; }
+.vocabulary-control { display: flex; align-items: center; gap: 7px; color: var(--ink-soft); font-size: 11px; font-weight: 700; }
+.vocabulary-control > span { white-space: nowrap; }
+.vocabulary-control select { padding: 7px 28px 7px 10px; border: 1px solid var(--line); border-radius: 999px; outline: none; background: var(--paper-light); color: var(--ink); font-size: 11px; cursor: pointer; }
+.vocabulary-control select:focus-visible { border-color: var(--signal); box-shadow: 0 0 0 3px rgba(190, 84, 50, .12); }
 .view-switch, .source-tabs { display: flex; padding: 3px; border: 1px solid var(--line); border-radius: 999px; }
 .view-switch button, .source-tabs button { padding: 7px 12px; border-radius: 999px; background: transparent; color: var(--ink-soft); font-size: 11px; }
 .view-switch button.active, .source-tabs button.active { background: var(--ink); color: white; }
@@ -307,6 +312,7 @@ h1, h2 { font-family: "Iowan Old Style", "Songti SC", serif; font-weight: 600; }
   background-clip: text;
   -webkit-background-clip: text;
 }
+.vocabulary-hint { margin-left: 2px; color: var(--signal-dark); font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif; font-size: .72em; font-weight: 650; white-space: nowrap; }
 .segment-text .zh { margin-top: 7px; color: var(--ink-soft); font-size: 14px; line-height: 1.55; }
 .transcript[data-view="en"] .zh, .transcript[data-view="zh"] .en { display: none; }
 .transcript[data-view="zh"] .zh { margin-top: 0; color: var(--ink); font-size: 16px; }
@@ -351,6 +357,9 @@ h1, h2 { font-family: "Iowan Old Style", "Songti SC", serif; font-weight: 600; }
   .episode-header { gap: 13px; flex-wrap: wrap; }
   .episode-actions { width: 100%; justify-content: flex-end; }
   .episode-copy h2 { font-size: 27px; }
+  .transcript-heading { align-items: flex-start; flex-direction: column; gap: 14px; }
+  .transcript-controls { width: 100%; justify-content: space-between; }
+  .vocabulary-control > span { display: none; }
   .timeline-card { margin: 24px 0; padding: 18px 14px; }
   .summary-panel { margin-bottom: 26px; padding: 20px 18px 22px; }
   .summary-empty { align-items: flex-start; flex-direction: column; }

@@ -1,3 +1,5 @@
+import { createVocabularyLookup, normalizeWord, shouldShowVocabulary, VOCABULARY_LABELS } from "/vocabulary.js";
+
 const state = {
   jobs: [],
   selectedId: null,
@@ -9,7 +11,8 @@ const state = {
   follow: true,
   source: "file",
   rssPodcast: null,
-  pollTimer: null
+  pollTimer: null,
+  vocabularyLevel: localStorage.getItem("vocabulary-level") || "cet4"
 };
 
 const $ = (selector) => document.querySelector(selector);
@@ -244,11 +247,30 @@ function renderTranscript(segments) {
 }
 
 function renderEnglish(segment) {
-  if (!segment.words?.length) return escapeHtml(segment.en);
+  const vocabulary = createVocabularyLookup(segment.vocabulary);
+  if (!segment.words?.length) return renderEnglishWithoutTimings(segment.en, vocabulary);
   return segment.words.map((word, index) => {
     const text = index === 0 ? word.text.trimStart() : word.text;
-    return `<span class="word" data-word-index="${index}">${escapeHtml(text)}</span>`;
+    return `<span class="word" data-word-index="${index}">${escapeHtml(text)}</span>${renderVocabularyHint(text, vocabulary)}`;
   }).join("");
+}
+
+function renderEnglishWithoutTimings(text, vocabulary) {
+  let lastIndex = 0;
+  let html = "";
+  for (const match of text.matchAll(/[A-Za-z]+(?:['’][A-Za-z]+)*/g)) {
+    html += escapeHtml(text.slice(lastIndex, match.index));
+    html += `${escapeHtml(match[0])}${renderVocabularyHint(match[0], vocabulary)}`;
+    lastIndex = match.index + match[0].length;
+  }
+  return html + escapeHtml(text.slice(lastIndex));
+}
+
+function renderVocabularyHint(word, vocabulary) {
+  const entry = vocabulary.get(normalizeWord(word));
+  if (!shouldShowVocabulary(entry, state.vocabularyLevel)) return "";
+  const label = VOCABULARY_LABELS[entry.level];
+  return `<span class="vocabulary-hint" title="${label}词汇" aria-label="中文释义：${escapeHtml(entry.zh)}">(${escapeHtml(entry.zh)})</span>`;
 }
 
 function findActiveSegment(segments, currentTime) {
@@ -350,7 +372,7 @@ async function submitImport(event) {
     let job;
     if (state.source === "file") {
       const file = $("#audio-file").files[0];
-      if (!file) throw new Error("请先选择一个音频文件。 ");
+      if (!file) throw new Error("请先选择一个音频或视频文件。 ");
       const form = new FormData();
       form.append("audio", file);
       job = await request("/api/jobs/upload", { method: "POST", body: form });
@@ -456,6 +478,14 @@ $$("[data-view]").forEach((button) => button.addEventListener("click", () => {
   $$("[data-view]").forEach((item) => item.classList.toggle("active", item === button));
   transcript.dataset.view = button.dataset.view;
 }));
+
+const vocabularyLevel = $("#vocabulary-level");
+vocabularyLevel.value = state.vocabularyLevel;
+vocabularyLevel.addEventListener("change", () => {
+  state.vocabularyLevel = vocabularyLevel.value;
+  localStorage.setItem("vocabulary-level", state.vocabularyLevel);
+  if (state.selectedJob?.status === "ready") renderTranscript(state.selectedJob.segments);
+});
 
 $("#delete-job").addEventListener("click", async () => {
   if (!state.selectedId || state.selectedJob?.demo) return;

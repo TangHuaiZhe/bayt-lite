@@ -86,10 +86,22 @@
                 <span class="eyebrow">双语逐字稿</span>
                 <p id="segment-summary"></p>
               </div>
-              <div class="view-switch" role="group" aria-label="字幕显示方式">
-                <button data-view="both" class="active">双语</button>
-                <button data-view="en">英文</button>
-                <button data-view="zh">中文</button>
+              <div class="transcript-controls">
+                <label class="vocabulary-control" for="vocabulary-level">
+                  <span>生词提示</span>
+                  <select id="vocabulary-level" title="提示所选难度及以上的词汇">
+                    <option value="off">关闭</option>
+                    <option value="cet4" selected>四级英语及以上</option>
+                    <option value="cet6">六级英语及以上</option>
+                    <option value="ielts">雅思及以上</option>
+                    <option value="advanced">更高水平</option>
+                  </select>
+                </label>
+                <div class="view-switch" role="group" aria-label="字幕显示方式">
+                  <button data-view="both" class="active">双语</button>
+                  <button data-view="en">英文</button>
+                  <button data-view="zh">中文</button>
+                </div>
               </div>
             </div>
             <div id="transcript" class="transcript" tabindex="0"></div>
@@ -105,15 +117,15 @@
           <button type="button" class="icon-button dialog-close" aria-label="关闭">×</button>
         </div>
         <div class="source-tabs" role="tablist">
-          <button type="button" data-source="file" class="active">本地音频</button>
+          <button type="button" data-source="file" class="active">本地文件</button>
           <button type="button" data-source="audio">节目地址</button>
           <button type="button" data-source="rss">RSS 地址</button>
         </div>
         <section data-source-panel="file">
           <label class="drop-zone" for="audio-file">
-            <input id="audio-file" name="audio" type="file" accept="audio/*,.mp3,.m4a,.wav,.ogg,.webm" />
-            <strong>选择音频文件</strong>
-            <span>最大 300 MB，支持 MP3、M4A、WAV、OGG 和 WebM</span>
+            <input id="audio-file" name="audio" type="file" accept="audio/*,video/*,.mkv,.avi,.wmv,.flv" />
+            <strong>选择音频或视频文件</strong>
+            <span>视频会先自动提取音频；原生音频上限为 300 MB</span>
           </label>
         </section>
         <section data-source-panel="audio" hidden>
