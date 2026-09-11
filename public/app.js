@@ -141,19 +141,20 @@ function renderSummary(job) {
   const panel = $("#summary-panel");
   panel.hidden = false;
   const status = job.summaryStatus || (job.summary ? "ready" : "idle");
+  const storageKey = `summary-collapsed:${job.id}`;
+  const collapsed = localStorage.getItem(storageKey) === "true";
+  const toggle = `<button class="summary-link" data-summary-toggle aria-expanded="${!collapsed}" aria-controls="summary-content">${collapsed ? "展开" : "收起"}</button>`;
+  panel.classList.toggle("collapsed", collapsed);
 
   if (status === "processing") {
     panel.innerHTML = `
-      <div class="summary-head"><span class="eyebrow">AI 听后札记</span><button class="summary-link" data-summary-cancel>取消总结</button></div>
-      <div class="summary-loading"><i></i><i></i><i></i><strong>正在梳理这集播客</strong><span>完成后会自动显示</span></div>`;
+      <div class="summary-head"><span class="eyebrow">AI 听后札记</span><div class="summary-actions"><button class="summary-link" data-summary-cancel>取消总结</button>${toggle}</div></div>
+      <div id="summary-content" class="summary-loading" ${collapsed ? "hidden" : ""}><i></i><i></i><i></i><strong>正在梳理这集播客</strong><span>完成后会自动显示</span></div>`;
     panel.querySelector("[data-summary-cancel]").addEventListener("click", () => cancelSelectedTask("总结已取消"));
-    return;
-  }
-
-  if (status === "failed") {
+  } else if (status === "failed") {
     panel.innerHTML = `
-      <div class="summary-head"><span class="eyebrow">AI 听后札记</span></div>
-      <div class="summary-empty">
+      <div class="summary-head"><span class="eyebrow">AI 听后札记</span>${toggle}</div>
+      <div id="summary-content" class="summary-empty" ${collapsed ? "hidden" : ""}>
         <div><strong>总结生成失败</strong><p>${escapeHtml(job.summaryError || "请稍后重试。")}</p></div>
         <button class="summary-button" data-summary-action="retry">重新生成</button>
       </div>`;
@@ -163,19 +164,25 @@ function renderSummary(job) {
     panel.innerHTML = `
       <div class="summary-head">
         <span class="eyebrow">AI 听后札记</span>
-        <button class="summary-link" data-summary-action="regenerate">重新生成</button>
+        <div class="summary-actions"><button class="summary-link" data-summary-action="regenerate">重新生成</button>${toggle}</div>
       </div>
-      <div class="summary-copy">${paragraphs}</div>
-      <ol class="summary-points">${job.summary.keyPoints.map((point) => `<li>${escapeHtml(point)}</li>`).join("")}</ol>`;
+      <div id="summary-content" ${collapsed ? "hidden" : ""}>
+        <div class="summary-copy">${paragraphs}</div>
+        <ol class="summary-points">${job.summary.keyPoints.map((point) => `<li>${escapeHtml(point)}</li>`).join("")}</ol>
+      </div>`;
   } else {
     panel.innerHTML = `
-      <div class="summary-head"><span class="eyebrow">AI 听后札记</span></div>
-      <div class="summary-empty">
+      <div class="summary-head"><span class="eyebrow">AI 听后札记</span>${toggle}</div>
+      <div id="summary-content" class="summary-empty" ${collapsed ? "hidden" : ""}>
         <div><strong>先看懂，再细听</strong><p>基于完整逐字稿生成中文概述和关键要点。</p></div>
         <button class="summary-button" data-summary-action="generate">生成 AI 总结</button>
       </div>`;
   }
 
+  panel.querySelector("[data-summary-toggle]").addEventListener("click", () => {
+    localStorage.setItem(storageKey, String(!collapsed));
+    renderSummary(job);
+  });
   panel.querySelector("[data-summary-action]")?.addEventListener("click", generateSummary);
 }
 

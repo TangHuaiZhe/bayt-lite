@@ -248,7 +248,9 @@ h1, h2 { font-family: "Iowan Old Style", "Songti SC", serif; font-weight: 600; }
   background: rgba(248, 250, 249, .72);
 }
 .summary-panel::before { content: ""; position: absolute; inset: 0 auto 0 0; width: 4px; background: var(--signal); }
+.summary-panel.collapsed { padding-top: 15px; padding-bottom: 15px; }
 .summary-head { min-height: 24px; display: flex; align-items: center; justify-content: space-between; gap: 20px; }
+.summary-actions { display: flex; align-items: center; gap: 16px; }
 .summary-link { padding: 0; border: 0; background: transparent; color: var(--moss); font-size: 11px; font-weight: 700; cursor: pointer; }
 .summary-empty { min-height: 82px; display: flex; align-items: end; justify-content: space-between; gap: 24px; }
 .summary-empty strong { display: block; margin-top: 10px; font: 600 24px/1.2 "Iowan Old Style", "Songti SC", serif; }
