@@ -2,8 +2,10 @@
   "name": "bayt-lite",
   "version": "0.1.0",
   "private": true,
+  "author": "TangHuaiZhe",
   "description": "个人播客双语字幕播放器",
   "license": "MIT",
+  "main": "electron/main.cjs",
   "repository": "https://github.com/TangHuaiZhe/bayt-lite",
   "engines": { "node": ">=20" },
   "type": "module",
@@ -11,11 +13,35 @@
     "setup": "uv venv --python 3.12 && uv pip install --python .venv/bin/python mlx-whisper==0.4.3",
     "start": "node --env-file-if-exists=.env server.js",
     "dev": "node --env-file-if-exists=.env --watch server.js",
+    "desktop:setup": "node electron/setup-runtime.mjs",
+    "desktop:dev": "electron .",
+    "desktop:dir": "electron-builder --mac dir --arm64",
+    "desktop:build": "electron-builder --mac dmg --arm64",
     "test": "node --test"
   },
   "dependencies": {
     "express": "^5.1.0",
     "fast-xml-parser": "^5.2.5",
     "multer": "^2.0.2"
+  },
+  "devDependencies": {
+    "electron": "^44.3.0",
+    "electron-builder": "^26.15.3"
+  },
+  "build": {
+    "appId": "com.tanghuaizhe.baytlite",
+    "productName": "听译台",
+    "artifactName": "Bayt-Lite-${version}-${arch}.${ext}",
+    "asar": true,
+    "afterPack": "electron/after-pack.cjs",
+    "files": ["electron/main.cjs", "lib/**/*", "public/**/*", "server.js", "package.json"],
+    "extraResources": [{ "from": "scripts", "to": "scripts" }],
+    "directories": { "output": "dist", "buildResources": "build" },
+    "mac": {
+      "category": "public.app-category.education",
+      "icon": "build/icon.icns",
+      "identity": null,
+      "target": ["dmg"]
+    }
   }
 }

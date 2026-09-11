@@ -14,15 +14,16 @@ import { isApplePodcastEpisodeUrl, resolveApplePodcastEpisode } from "./lib/appl
 import { processSummary } from "./lib/summary.js";
 import { cancelTask, finishTask, startTask } from "./lib/task-control.js";
 import { isRetryableJob, prepareJobForRetry } from "./lib/retry.js";
+import { dataPath } from "./lib/paths.js";
 
 const root = path.dirname(fileURLToPath(import.meta.url));
-process.chdir(root);
 await ensureStorage();
 
 const app = express();
 const port = Number(process.env.PORT || 4173);
+const host = process.env.HOST || "127.0.0.1";
 const upload = multer({
-  dest: path.join(root, "data/uploads"),
+  dest: dataPath("uploads"),
   limits: { fileSize: 300 * 1024 * 1024 }
 });
 
@@ -132,7 +133,7 @@ app.get("/api/health", (_request, response) => {
   response.json({
     ok: true,
     deepseekConfigured: Boolean(process.env.DEEPSEEK_API_KEY),
-    localWhisperConfigured: existsSync(path.join(root, ".venv/bin/python")),
+    localWhisperConfigured: existsSync(process.env.BAYT_PYTHON || path.join(root, ".venv/bin/python")),
     ffmpeg: true
   });
 });
@@ -193,7 +194,7 @@ app.post("/api/jobs/upload", upload.single("audio"), async (request, response) =
   const id = crypto.randomUUID();
   const originalName = decodeMultipartFilename(request.file.originalname);
   const extension = path.extname(originalName) || ".audio";
-  const localPath = path.join(root, "data/uploads", `${id}${extension}`);
+  const localPath = dataPath("uploads", `${id}${extension}`);
   await rename(request.file.path, localPath);
   const now = new Date().toISOString();
   const job = await saveJob({
@@ -224,7 +225,7 @@ app.post("/api/jobs/url", async (request, response) => {
     return response.status(400).json({ error: error.message });
   }
   const id = crypto.randomUUID();
-  const localPath = path.join(root, "data/uploads", `${id}.audio`);
+  const localPath = dataPath("uploads", `${id}.audio`);
   const now = new Date().toISOString();
   const job = await saveJob({
     id,
@@ -275,7 +276,7 @@ app.post("/api/jobs/:id/cancel", async (request, response) => {
     ? { ...job, status: "cancelled", progress: 0, message: "处理已取消", updatedAt: new Date().toISOString() }
     : { ...job, summaryStatus: "cancelled", summaryError: "", updatedAt: new Date().toISOString() };
   await saveJob(updated);
-  await rm(path.join(root, "data/chunks", job.id), { recursive: true, force: true });
+  await rm(dataPath("chunks", job.id), { recursive: true, force: true });
   response.json(publicJob(updated));
 });
 
@@ -299,6 +300,6 @@ app.use((error, _request, response, _next) => {
   });
 });
 
-app.listen(port, () => {
-  console.log(`听译台已启动：http://localhost:${port}`);
+app.listen(port, host, () => {
+  console.log(`听译台已启动：http://${host}:${port}`);
 });

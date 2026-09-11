@@ -8,6 +8,7 @@
 
 - 使用中文编写用户可见文案；出现英文术语时同时给出中文说明。
 - 保持 Node.js + 原生浏览器 JavaScript 的轻量架构，除非需求明确要求，不引入前端框架或数据库。
+- macOS 客户端使用 Electron 复用同一套界面和本机服务；渲染进程必须保持 `nodeIntegration: false`、`contextIsolation: true` 和沙箱开启。
 - 服务端代码使用 ECMAScript Module（ECMAScript 模块）语法。
 - 文件修改应围绕当前需求，避免无关重构。
 - 新增行为必须附带与风险相称的测试。
@@ -22,6 +23,7 @@
 - 中文文件名在进入任务记录前必须经过 multipart（多段表单）编码修复。
 - Apple Podcasts 单集页面必须先解析公开页面元数据，不能把 HTML 网页当作音频传给 FFmpeg。
 - 用户任务与导入音频默认只保存在 `data/`。
+- 桌面客户端的数据、密钥和 Python 环境必须位于 macOS Application Support（应用支持目录），不得打入安装包或提交到仓库。
 - 取消任务必须向下载、FFmpeg、Whisper 和 DeepSeek 传播中止信号；删除任务后，后台流程不得重新写回任务记录。
 - 重试本地任务必须复用仍存在的原始音频；重试远程任务必须从原始 `sourceUrl` 重新解析并下载，不得复用可能损坏的下载文件。
 
@@ -38,5 +40,6 @@ npm run dev
 
 - `npm test` 全部通过。
 - `node --check server.js` 和 `node --check public/app.js` 通过。
+- 桌面改动还需实际构建 `.app`，检查独立后端健康状态、窗口进程和现有音频的分段读取。
 - `.env`、API 密钥、`data/jobs.json`、`data/uploads/`、`data/chunks/`、`.venv/` 和模型缓存不得提交。
 - 内置演示音频和字幕必须保持可播放、可同步。

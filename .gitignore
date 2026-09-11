@@ -7,3 +7,6 @@ data/chunks/
 .DS_Store
 .playwright-cli/
 output/
+dist/
+build/icon.iconset/
+build/icon-1024.png
