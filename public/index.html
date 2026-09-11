@@ -100,7 +100,7 @@
         </div>
         <div class="source-tabs" role="tablist">
           <button type="button" data-source="file" class="active">本地音频</button>
-          <button type="button" data-source="audio">音频地址</button>
+          <button type="button" data-source="audio">节目地址</button>
           <button type="button" data-source="rss">RSS 地址</button>
         </div>
         <section data-source-panel="file">
@@ -112,7 +112,7 @@
         </section>
         <section data-source-panel="audio" hidden>
           <label>单集标题<input id="audio-title" class="field" type="text" placeholder="例如：How AI changes product design" /></label>
-          <label>音频直链<input id="audio-url" class="field" type="url" placeholder="https://example.com/episode.mp3" /></label>
+          <label>音频直链或 Apple Podcasts 单集地址<input id="audio-url" class="field" type="url" placeholder="https://podcasts.apple.com/…?i=…" /></label>
         </section>
         <section data-source-panel="rss" hidden>
           <label>播客 RSS 地址<input id="rss-url" class="field" type="url" placeholder="https://example.com/feed.xml" /></label>

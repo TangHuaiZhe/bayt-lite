@@ -10,6 +10,7 @@ import { parsePodcastFeed } from "./lib/rss.js";
 import { processJob } from "./lib/jobs.js";
 import { decodeMultipartFilename } from "./lib/filename.js";
 import { mergeSegmentsBySentence } from "./lib/segments.js";
+import { isApplePodcastEpisodeUrl, resolveApplePodcastEpisode } from "./lib/apple-podcasts.js";
 
 const root = path.dirname(fileURLToPath(import.meta.url));
 process.chdir(root);
@@ -43,6 +44,10 @@ function safeRemoteUrl(input) {
 async function downloadAudio(remoteUrl, destination) {
   const response = await fetch(safeRemoteUrl(remoteUrl), { redirect: "follow" });
   if (!response.ok) throw new Error(`下载音频失败：${response.status}`);
+  const contentType = response.headers.get("content-type") || "";
+  if (contentType.includes("text/html")) {
+    throw new Error("该地址返回的是网页，不是音频直链。请使用 Apple Podcasts 单集链接、RSS 地址或真实音频地址。");
+  }
   const declared = Number(response.headers.get("content-length") || 0);
   if (declared > 300 * 1024 * 1024) throw new Error("音频超过 300 MB 限制。 ");
   const bytes = new Uint8Array(await response.arrayBuffer());
@@ -142,8 +147,19 @@ app.post("/api/jobs/upload", upload.single("audio"), async (request, response) =
 app.post("/api/jobs/url", async (request, response) => {
   const { audioUrl, title, podcast, artwork } = request.body;
   if (!audioUrl) return response.status(400).json({ error: "请输入音频地址。" });
+  let source = { audioUrl, title, podcast, artwork };
   try {
     safeRemoteUrl(audioUrl);
+    if (isApplePodcastEpisodeUrl(audioUrl)) {
+      const appleEpisode = await resolveApplePodcastEpisode(audioUrl);
+      source = {
+        audioUrl: appleEpisode.audioUrl,
+        title: title?.trim() || appleEpisode.title,
+        podcast: podcast?.trim() || appleEpisode.podcast,
+        artwork: artwork || appleEpisode.artwork
+      };
+      safeRemoteUrl(source.audioUrl);
+    }
   } catch (error) {
     return response.status(400).json({ error: error.message });
   }
@@ -152,9 +168,9 @@ app.post("/api/jobs/url", async (request, response) => {
   const now = new Date().toISOString();
   const job = await saveJob({
     id,
-    title: title?.trim() || "未命名单集",
-    podcast: podcast?.trim() || "链接导入",
-    artwork: artwork || "",
+    title: source.title?.trim() || "未命名单集",
+    podcast: source.podcast?.trim() || "链接导入",
+    artwork: source.artwork || "",
     sourceUrl: audioUrl,
     localPath,
     mimeType: "audio/mpeg",
@@ -168,7 +184,7 @@ app.post("/api/jobs/url", async (request, response) => {
   response.status(202).json(publicJob(job));
   void (async () => {
     try {
-      await downloadAudio(audioUrl, localPath);
+      await downloadAudio(source.audioUrl, localPath);
       await processJob(id);
     } catch (error) {
       await saveJob({ ...job, status: "failed", progress: 0, message: error.message, updatedAt: new Date().toISOString() });
