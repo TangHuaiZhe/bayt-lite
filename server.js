@@ -3,7 +3,7 @@ import multer from "multer";
 import crypto from "node:crypto";
 import path from "node:path";
 import { createReadStream, existsSync } from "node:fs";
-import { readFile, writeFile, stat, rename } from "node:fs/promises";
+import { readFile, writeFile, stat, rename, rm } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { ensureStorage, listJobs, getJob, saveJob, deleteJob } from "./lib/storage.js";
 import { parsePodcastFeed } from "./lib/rss.js";
@@ -12,6 +12,7 @@ import { decodeMultipartFilename } from "./lib/filename.js";
 import { mergeSegmentsBySentence } from "./lib/segments.js";
 import { isApplePodcastEpisodeUrl, resolveApplePodcastEpisode } from "./lib/apple-podcasts.js";
 import { processSummary } from "./lib/summary.js";
+import { cancelTask, finishTask, startTask } from "./lib/task-control.js";
 
 const root = path.dirname(fileURLToPath(import.meta.url));
 process.chdir(root);
@@ -42,8 +43,8 @@ function safeRemoteUrl(input) {
   return url;
 }
 
-async function downloadAudio(remoteUrl, destination) {
-  const response = await fetch(safeRemoteUrl(remoteUrl), { redirect: "follow" });
+async function downloadAudio(remoteUrl, destination, signal) {
+  const response = await fetch(safeRemoteUrl(remoteUrl), { redirect: "follow", signal });
   if (!response.ok) throw new Error(`下载音频失败：${response.status}`);
   const contentType = response.headers.get("content-type") || "";
   if (contentType.includes("text/html")) {
@@ -53,7 +54,7 @@ async function downloadAudio(remoteUrl, destination) {
   if (declared > 300 * 1024 * 1024) throw new Error("音频超过 300 MB 限制。 ");
   const bytes = new Uint8Array(await response.arrayBuffer());
   if (bytes.byteLength > 300 * 1024 * 1024) throw new Error("音频超过 300 MB 限制。 ");
-  await writeFile(destination, bytes);
+  await writeFile(destination, bytes, { signal });
 }
 
 async function initializeDemo() {
@@ -104,7 +105,8 @@ app.post("/api/jobs/:id/summary", async (request, response) => {
 
   const pending = await saveJob({ ...job, summaryStatus: "processing", summaryError: "" });
   response.status(202).json(publicJob(pending));
-  void processSummary(job.id);
+  const controller = startTask(job.id);
+  void processSummary(job.id, { signal: controller.signal }).finally(() => finishTask(job.id, controller));
 });
 
 app.get("/api/jobs/:id/audio", async (request, response) => {
@@ -156,7 +158,8 @@ app.post("/api/jobs/upload", upload.single("audio"), async (request, response) =
     updatedAt: now
   });
   response.status(202).json(publicJob(job));
-  void processJob(id);
+  const controller = startTask(id);
+  void processJob(id, { signal: controller.signal }).finally(() => finishTask(id, controller));
 });
 
 app.post("/api/jobs/url", async (request, response) => {
@@ -197,12 +200,19 @@ app.post("/api/jobs/url", async (request, response) => {
     updatedAt: now
   });
   response.status(202).json(publicJob(job));
+  const controller = startTask(id);
   void (async () => {
     try {
-      await downloadAudio(source.audioUrl, localPath);
-      await processJob(id);
+      await downloadAudio(source.audioUrl, localPath, controller.signal);
+      await processJob(id, { signal: controller.signal });
     } catch (error) {
-      await saveJob({ ...job, status: "failed", progress: 0, message: error.message, updatedAt: new Date().toISOString() });
+      if (controller.signal.aborted) return;
+      const latest = await getJob(id);
+      if (!controller.signal.aborted && latest) {
+        await saveJob({ ...latest, status: "failed", progress: 0, message: error.message, updatedAt: new Date().toISOString() });
+      }
+    } finally {
+      finishTask(id, controller);
     }
   })();
 });
@@ -219,9 +229,26 @@ app.get("/api/rss", async (request, response) => {
 });
 
 app.delete("/api/jobs/:id", async (request, response) => {
+  cancelTask(request.params.id);
   const deleted = await deleteJob(request.params.id);
   if (!deleted) return response.status(404).json({ error: "任务不存在或不能删除。" });
   response.status(204).end();
+});
+
+app.post("/api/jobs/:id/cancel", async (request, response) => {
+  const job = await getJob(request.params.id);
+  if (!job || job.demo) return response.status(404).json({ error: "任务不存在或不能取消。" });
+  const processingJob = ["queued", "processing"].includes(job.status);
+  const processingSummary = job.summaryStatus === "processing";
+  if (!processingJob && !processingSummary) return response.status(409).json({ error: "该任务当前不需要取消。" });
+
+  cancelTask(job.id);
+  const updated = processingJob
+    ? { ...job, status: "cancelled", progress: 0, message: "处理已取消", updatedAt: new Date().toISOString() }
+    : { ...job, summaryStatus: "cancelled", summaryError: "", updatedAt: new Date().toISOString() };
+  await saveJob(updated);
+  await rm(path.join(root, "data/chunks", job.id), { recursive: true, force: true });
+  response.json(publicJob(updated));
 });
 
 app.use((error, _request, response, _next) => {

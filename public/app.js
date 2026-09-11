@@ -101,7 +101,9 @@ function showJob(job, preserveTime = false) {
   $("#player-view").hidden = false;
   $("#episode-title").textContent = job.title;
   $("#podcast-name").textContent = job.podcast;
-  $("#delete-job").hidden = Boolean(job.demo);
+  const isProcessing = ["queued", "processing"].includes(job.status);
+  $("#cancel-job").hidden = Boolean(job.demo) || !isProcessing;
+  $("#delete-job").hidden = Boolean(job.demo) || isProcessing;
   renderArtwork(job);
 
   const status = $("#episode-status");
@@ -140,8 +142,9 @@ function renderSummary(job) {
 
   if (status === "processing") {
     panel.innerHTML = `
-      <div class="summary-head"><span class="eyebrow">AI 听后札记</span></div>
+      <div class="summary-head"><span class="eyebrow">AI 听后札记</span><button class="summary-link" data-summary-cancel>取消总结</button></div>
       <div class="summary-loading"><i></i><i></i><i></i><strong>正在梳理这集播客</strong><span>完成后会自动显示</span></div>`;
+    panel.querySelector("[data-summary-cancel]").addEventListener("click", () => cancelSelectedTask("总结已取消"));
     return;
   }
 
@@ -377,16 +380,35 @@ $$("[data-view]").forEach((button) => button.addEventListener("click", () => {
 
 $("#delete-job").addEventListener("click", async () => {
   if (!state.selectedId || state.selectedJob?.demo) return;
-  if (!window.confirm("删除这集音频及其字幕？")) return;
-  await request(`/api/jobs/${state.selectedId}`, { method: "DELETE" });
-  state.selectedId = null;
-  state.selectedJob = null;
-  audio.pause();
-  audio.removeAttribute("src");
-  $("#player-view").hidden = true;
-  $("#empty-state").hidden = false;
-  await loadJobs();
-  showToast("已删除单集");
+  if (!window.confirm("删除这个任务及其本地音频和字幕？")) return;
+  try {
+    await request(`/api/jobs/${state.selectedId}`, { method: "DELETE" });
+    localStorage.removeItem(`listen-progress:${state.selectedId}`);
+    state.selectedId = null;
+    state.selectedJob = null;
+    audio.pause();
+    audio.removeAttribute("src");
+    $("#player-view").hidden = true;
+    $("#empty-state").hidden = false;
+    await loadJobs();
+    showToast("任务已删除");
+  } catch (problem) {
+    showToast(problem.message);
+  }
 });
+
+async function cancelSelectedTask(message = "任务已取消") {
+  if (!state.selectedId || state.selectedJob?.demo) return;
+  try {
+    const job = await request(`/api/jobs/${state.selectedId}/cancel`, { method: "POST" });
+    showJob(job, true);
+    await loadJobs();
+    showToast(message);
+  } catch (problem) {
+    showToast(problem.message);
+  }
+}
+
+$("#cancel-job").addEventListener("click", () => cancelSelectedTask());
 
 await loadJobs();
