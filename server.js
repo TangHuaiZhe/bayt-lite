@@ -32,7 +32,7 @@ app.use(express.static(path.join(root, "public")));
 
 function publicJob(job) {
   if (!job) return null;
-  const { localPath, ...safe } = job;
+  const { localPath, pendingSegments, completedChunks, ...safe } = job;
   return { ...safe, segments: mergeSegmentsBySentence(safe.segments || []), audioUrl: `/api/jobs/${job.id}/audio` };
 }
 

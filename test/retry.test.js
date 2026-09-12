@@ -27,8 +27,32 @@ test("prepares a local retry and clears stale derived content", () => {
 });
 
 test("prepares a remote retry for source re-resolution", () => {
-  const retried = prepareJobForRetry({ id: "remote", status: "cancelled", sourceUrl: "https://example.com/episode" });
+  const retried = prepareJobForRetry({
+    id: "remote",
+    status: "cancelled",
+    sourceUrl: "https://example.com/episode",
+    completedChunks: 2,
+    segments: [{ en: "stale" }]
+  });
   assert.equal(retried.status, "processing");
   assert.equal(retried.progress, 2);
   assert.equal(retried.message, "正在重新解析节目地址");
+  assert.deepEqual(retried.segments, []);
+  assert.equal("completedChunks" in retried, false);
+});
+
+test("resumes a local job from its last completed chunk", () => {
+  const retried = prepareJobForRetry({
+    id: "local-checkpoint",
+    status: "failed",
+    completedChunks: 2,
+    duration: 1200,
+    segments: [{ id: "0", en: "Already translated.", zh: "已翻译。" }],
+    pendingSegments: [{ en: "An unfinished" }]
+  });
+  assert.equal(retried.message, "将从第 3 份继续处理");
+  assert.equal(retried.completedChunks, 2);
+  assert.equal(retried.duration, 1200);
+  assert.equal(retried.segments.length, 1);
+  assert.equal(retried.pendingSegments.length, 1);
 });

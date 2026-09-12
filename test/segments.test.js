@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { mergeSegmentsBySentence } from "../lib/segments.js";
+import { hasSentenceEnding, mergeSegmentsBySentence } from "../lib/segments.js";
 
 test("merges Whisper fragments until an English sentence-ending mark", () => {
   const result = mergeSegmentsBySentence([
@@ -31,6 +31,12 @@ test("leaves complete sentences as separate segments", () => {
   const result = mergeSegmentsBySentence(segments);
   assert.equal(result.length, 2);
   assert.equal(result[1].start, 2);
+});
+
+test("detects whether a chunk ends at an English sentence boundary", () => {
+  assert.equal(hasSentenceEnding("This is complete."), true);
+  assert.equal(hasSentenceEnding("Is this complete?"), true);
+  assert.equal(hasSentenceEnding("This continues"), false);
 });
 
 test("keeps word timestamps while merging fragments into a sentence", () => {
